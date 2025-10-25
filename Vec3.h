@@ -4,11 +4,10 @@
 //o constructores pequeños.
 //pero en general lo mejor es aca solo poner definiciones.
 #pragma once
-#include <math.h>
-#include <stdlib.h>
-#include <iostream>
-class Vec3
-{
+//#include "rtweekend.h"
+#include <cmath>
+#include "rtweekend.h"
+class Vec3 {
 	//constructor
 	public:
 		//array para representar el vector.
@@ -27,9 +26,6 @@ class Vec3
 		inline float x() const { return e[0]; } //una funcion marcada como const es de solo lectura, no se puede cambiar el valor retornado
 		inline float y() const { return e[1]; }
 		inline float z() const { return e[2]; }
-		inline float r() const { return e[0]; }
-		inline float g() const { return e[1]; }
-		inline float b() const { return e[2]; }
 
 		//declaracion y definicion de funciones de acceso.
 		inline Vec3& operator+() { //operador de acceso normal al objeto 
@@ -45,8 +41,8 @@ class Vec3
 			return e[i]; 
 		}
 		
-		//definicion de operaciones entre vectores y flotantes
-		inline Vec3 operator/(float t) { return Vec3(e[0] / t, e[1] / t, e[2] / t); }
+		//definicion de operaciones entre vectores y tipos de datos basicos
+		inline Vec3 operator/(float t) { return Vec3(e[0] / t, e[1] / t, e[2] / t); };
 		inline Vec3 operator*(float t) { return Vec3(e[0] * t, e[1] * t, e[2] * t); };
 
 		//declaracion de funciones de operaciones entre vectores
@@ -58,10 +54,22 @@ class Vec3
 		inline Vec3& operator/=( const float t); //operador de division escalar. todos los valores dividirlos por t.
 
 		//declaracion y definicion de varias funciones para largo(magnitud) y normalizacion del vector. 
-		inline float length() const { return sqrt(e[0]*e[0] + e[1]*e[1] + e[2]*e[2]); }
+		inline float length() const { return std::sqrt(e[0]*e[0] + e[1]*e[1] + e[2]*e[2]); }
 		inline float squared_length() const { return e[0]*e[0] + e[1]*e[1] + e[2]*e[2]; }
 		inline void make_unit_vector();
 
+		static Vec3 random() {
+			return Vec3(random_float(), random_float(), random_float());
+		}
+
+		static Vec3 random(float min, float max) {
+			return Vec3(random_float(min, max), random_float(min, max), random_float(min, max));
+		}
+
+		bool near_zero() const {
+			auto s = 1e-8;
+			return (std::fabs(e[0]) < s) && (std::fabs(e[1]) < s) && (std::fabs(e[2]) < s);
+		}
 };
 
 //declaracion y definicion de varios operadores
@@ -88,12 +96,12 @@ inline Vec3 operator*(float lhs, Vec3 rhs) {
 
 //declaracion y definicion de funciones de operaciones geometricas.
 inline float dot(const Vec3 &v1, const Vec3 &v2) {
-	return  v1.e[0] * v2.e[0] + v1.e[1] * v2.e[1] + v1.e[2] * v1.e[2];
+	return  v1.e[0] * v2.e[0] + v1.e[1] * v2.e[1] + v1.e[2] * v2.e[2];
 }
 
 inline Vec3 cross(const Vec3 &v1, const Vec3 &v2) {
 	return Vec3((v1.e[1] * v2.e[2] - v1.e[2] * v2.e[1]),
-				-(v1.e[0] * v2.e[2] - v1.e[2] * v2.e[0]),
+				(v1.e[2] * v2.e[0] - v1.e[0] * v2.e[2]),
 				(v1.e[0] * v2.e[1] - v1.e[1] * v2.e[0]));
 	}
 
@@ -116,8 +124,56 @@ inline Vec3& Vec3::operator/= (const Vec3& v2) {
 }
 
 inline Vec3& Vec3::operator/= (const float t) {
-	e[0] += t;
-	e[1] += t;
-	e[2] += t;
+	e[0] /= t;
+	e[1] /= t;
+	e[2] /= t;
 	return *(this);
+}
+
+inline void Vec3::make_unit_vector()
+{
+	float magnitude = std::sqrt(std::pow(this->x(), 2) + std::pow(this->y(), 2) + std::pow(this->z(), 2));
+	this[0] = this[0] / magnitude;
+	this[1] = this[1] / magnitude;
+	this[2] = this[2] / magnitude;
+}
+
+inline Vec3 random_unit_vector() {
+	while (true) {
+		Vec3 p = Vec3::random(-1.0f, 1.0f);
+		float lensq = p.squared_length();
+		if (1e-160 < lensq <= 1) {
+			return p / sqrt(lensq);
+		}
+	}
+}
+
+inline Vec3 random_on_hemisphere(const Vec3& normal) {
+	Vec3 on_unit_sphere = random_unit_vector();
+	if (dot(on_unit_sphere, normal) > 0.0f) {
+		return on_unit_sphere;
+	}
+	else {
+		return -on_unit_sphere;
+	}
+}
+
+inline Vec3 random_in_unit_disk() {
+	while (true) {
+		Vec3 p = Vec3(random_float(-1.0f, 1.0f), random_float(-1.0f, 1.0f), 0.0f);
+		if (p.squared_length() < 1.0f) {
+			return p;
+		}
+	}
+}
+
+inline Vec3 reflect(const Vec3& v, const Vec3& n) {
+	return v - 2 * dot(v, n) * n;
+}
+
+inline Vec3 refract(const Vec3& uv, const Vec3& n, float etai_over_etat) {
+	float cos_theta = std::fmin(dot(-uv, n), 1.0f);
+	Vec3 r_out_perp = etai_over_etat * (uv + (cos_theta * n));
+	Vec3 r_out_parallel = -std::sqrt(std::fabs(1.0f - r_out_perp.squared_length())) * n;
+	return r_out_perp + r_out_parallel;
 }

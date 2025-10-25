@@ -1,113 +1,125 @@
-#include <iostream>
+#include "rtweekend.h"
+
 #include <fstream>
-#include "Vec3.h"
-#include "Ray.h"
-#include "Sphere.h"
-#include "Hitable_List.h"
-#include "float.h"
+
 #include "Camera.h"
-#include <random>
+//#include "Hitable.h"
+#include "Hitable_List.h"
+//#include "float.h"
+//#include "Vec3.h"
+//#include "Color.h"
+//#include "material.h"
+#include "Sphere.h"
+#include "Interval.h"
+//#include "Ray.h"
 
-//given a center of a sphere, the radious of a spehre, and a ray. calculate if the ray hits. i.e: there is a t for the ray that satifies the 
-// sphere parametric equation
-/*
-float hit_sphere(const Vec3& center, float radious, const ray& r) {
-	Vec3 oc = center - r.origin();
-	float a = dot(r.direction(), r.direction());
-	float b = -2.0f * dot(r.direction(), oc);
-	float c = dot(oc, oc) - radious * radious;
-	float discriminant = b * b - 4 * a * c;
-	if (discriminant < 0) {
-		return -1.0f;
-	}
-	else { //this enters if the ray hits
-		return (-b - sqrt(discriminant)) / (2.0f * a);
-	}
-}
-Vec3 color(const ray& r) {
-	float t = hit_sphere(Vec3(0.0f, 0.0f, -1.0f), 0.5f, r);
-
-	//if  the ray hits. i.e there is a t that satisfies the sphere equation
-	if ( t > 0.0f )  {
-		//calculate the normal vector from that point. it is the point in the sphere hit by the ray minus the center of the sphere. we turn it into a 
-		// unit vector
-		//Vec3 N = unit_vector(r.point_at_parameter(t) - Vec3(0.0f, 0.0f, -1.0f));
-		//return 0.5f * Vec3(N.x() + 1.0f, N.y() + 1.0f, N.z() + 1.0f);
-		return Vec3(0.5f, 0.0f, 0.5f);
-	}
-	//if not, show the blend between white and blue we defined
-	Vec3 unit_direction = unit_vector(r.direction());
-	t = 0.5f * (unit_direction.y() + 1.0f);
-	return (1.0f - t) * Vec3(1.0f, 1.0f, 1.0f) + t * Vec3(0.5f, 0.7f, 1.0f);
-}
-*/
-
-Vec3 color(const ray& r, Hitable* world) {
+color ray_color(const ray& r, const Hitable& world) {
 	hit_record rec;
-	if (world->hit(r, 0.0f,  FLT_MAX, rec)) { //if it hits anything in the world
-		return 0.5f * Vec3(rec.normal.x() + 1, rec.normal.y() + 1, rec.normal.z() + 1); //we calculate the normal
+	if (world.hit(r, interval(0, infinity), rec)) { ;
+		return 0.5f * (rec.normal + Vec3(1.0f, 1.0f, 1.0f));
 	}
-	else {
-		Vec3 unit_direction = unit_vector(r.direction());
-		float t = 0.5f * (unit_direction.y() + 1.0f);
-		return (1.0f - t) * Vec3(1.0f, 1.0f, 1.0f) + t * Vec3(0.5f, 0.7f, 1.0f);
-	}
+	Vec3 unit_direction = unit_vector(r.direction());
+	float a = 0.5f * (unit_direction.y() + 1.0f); 
+	return (1.0f - a) * color(1.0f, 1.0f, 1.0f) + a*color(0.5f, 0.7f, 1.0f);
 }
 
 int main() {
-	
-	//pruebas vec3
-	Vec3 vec1 = *(new Vec3(25.0f, 15.0f, 2.0f));
+	Hitable_List world;
 
-	Vec3 lower_left_corner(-2.0f, -1.0f, -1.0f); //lower left corner for the portview we want
-	Vec3 horizontal(4.0f, 0.0f, 0.0f); //movement on the x axis for the rays we generate
-	Vec3 vertical(0.0f, 2.0f, 0.0f); //movement on the y axis for the rays we generate
-	Vec3 origin(0.0f, 0.0f, 0.0f); //origin of our camera
-	
-	Hitable* list[2];
-	list[0] = new Sphere(Vec3(0.0f, 0.0f, -1.0f), 0.5f);
-	list[1] = new Sphere(Vec3(0.0f, -100.5f, -1.0f), 100.0f);
-	Hitable* world = new Hitable_List(list, 2.0f);
+	auto ground_material = make_shared<Lambertian>(Vec3(0.5f, 0.5f, 0.5f));
+	world.add(make_shared<Sphere>(Vec3(0.0f, -1000.0f, 0.0f), 1000, ground_material));
 
-	//crear un ppm de prueba
-	std::ofstream ppm_file;
-	ppm_file.open("generated_image.ppm");
+	for (int a = -11; a < 11; a++) {
+		for (int b = -11; b < 11; b++) {
+			float choose_mat = random_float();
+			Vec3 center(a + 0.9f * random_float(), 0.2f, b + 0.9f * random_float());
 
-	//ppm hello world
-	ppm_file << "P3" << '\n'; //marcado como que la imagen es un pixmap donde los valores se guardan en ASCII, y no en binario.
-	ppm_file << "200 100" << '\n'; //ancho y largo de la imagen en pixeles. 
-	ppm_file << 255 << '\n'; //marcado como que el valor mas grande de cada componente es 255.
+			if ((center - Vec3(4.0f, 0.2f, 0.0f)).length() > 0.9f) {
+				shared_ptr<material> sphere_material;
 
-	//200 columns, 100 rows
-	int nx = 200; //width
-	int ny = 100; //height
-	int ns = 100;
-
-	Camera cam;
-
-	//random distribution
-	std::uniform_real_distribution<float> dis(0.0f, 1.0f); //random number between 
-
-	//ppm files are made by defining every value in a row before passing to the next one
-	//thats why we define 
-	for (int y = ny - 1; y >= 0; --y) {
-		for (int x = 0; x < nx; ++x) {
-			Vec3 col(0.0f, 0.0f, 0.0f);
-			for (int s = 0; s < ns; ++s) {
-				float factor_r = float(x + dis()) / float(nx);
-				float factor_g = float(y + dis()) / float(ny);
-			
-				ray r = cam.get_ray(factor_r, factor_g);
-				Vec3 p = r.point_at_parameter(2.0f);
-				col += color(r, world);
+				if (choose_mat < 0.8f) {
+					//diffuse
+					Vec3 albedo = Vec3(random_float(0.0f, 1.0f), random_float(0.0f, 1.0f), random_float(0.0f, 1.0f)) * Vec3(random_float(0.0f, 1.0f), random_float(0.0f, 1.0f), random_float(0.0f, 1.0f));
+					sphere_material = make_shared<Lambertian>(albedo);
+					world.add(make_shared<Sphere>(center, 0.2f, sphere_material));
+				}
+				else if (choose_mat < 0.95f) {
+					//metal
+					Vec3 albedo = Vec3(random_float(0.5f, 1.0f), random_float(0.5f, 1.0f), random_float(0.5f, 1.0f));
+					float fuzz = random_float(0.0f, 0.5f);
+					sphere_material = make_shared<metal>(albedo, fuzz);
+					world.add(make_shared<Sphere>(center, 0.2f, sphere_material));
+				}
+				else {
+					//glass
+					sphere_material = make_shared<dielectric>(1.5f);
+					world.add(make_shared<Sphere>(center, 0.2f, sphere_material));
+				}
 			}
-			col /= float(ns);
-			ppm_file << int(255.0f * col[0]) << "	" << int(255.0f * col[1]) << "	" << int(255.0f * col[2]) << "\n";
 		}
 	}
 
-	ppm_file.close();
+	auto material1 = make_shared<dielectric>(1.5f);
+	world.add(make_shared<Sphere>(Vec3(0.0f, 1.0f, 0.0f), 1.0f, material1));
 
-	std::cout << "imagen generada";
+	auto material2 = make_shared<Lambertian>(Vec3(0.4f, 0.2f, 0.1f));
+	world.add(make_shared<Sphere>(Vec3(-4.0f, 1.0f, 0.0f), 1.0f, material2));
+
+	auto material3 = make_shared<metal>(color(0.7f, 0.6f, 0.5f), 0.0f);
+	world.add(make_shared<Sphere>(Vec3(4.0f, 1.0f, 0.0f), 1.0f, material3));
+
+	Camera cam;
+
+	cam.aspect_ratio = 16.0f / 9.0f;
+	cam.image_width = 1200;
+	cam.samples_per_pixel = 50;
+	cam.max_depth = 50;
+
+	cam.vfov = 20;
+	cam.lookfrom = Vec3(13.0f, 2.0f, 3.0f);
+	cam.lookat = Vec3(0.0f, 0.0f, 0.0f);
+	cam.vup = Vec3(0.0f, 1.0f, 0.0f);
+
+	cam.defocus_angle = 0.6f;
+	cam.focus_dist = 10.0f;
+
+	cam.render(world);
+
+	return 0;
+}
+
+int old_main() {
+
+	int a;
+	Hitable_List world;
+
+	auto material_ground = make_shared<Lambertian>(Vec3(0.8f, 0.8f, 0.0f));
+	auto material_center = make_shared<Lambertian>(Vec3(0.1f, 0.2f, 0.5f));
+	auto material_left = make_shared<dielectric>(1.5f);
+	//auto material_left = make_shared<metal>(Vec3(1.0f, 1.0f, 1.0f), 0.0f);
+	auto material_bubble = make_shared<dielectric>(1.0f/1.5f);
+	auto material_right = make_shared<metal>(Vec3(0.8f, 0.6f, 0.2f), 1.0f);
+
+	world.add(make_shared<Sphere>(Vec3(0.0f, -100.5f, -1.0f), 100.0f, material_ground));
+	world.add(make_shared<Sphere>(Vec3(0.0f, 0.0f, -1.2f), 0.5f, material_center));
+	world.add(make_shared<Sphere>(Vec3(-1.0f, 0.0f, -1.0f), 0.5f, material_left));
+	world.add(make_shared<Sphere>(Vec3(-1.0f, 0.0f, -1.0f), 0.4f, material_bubble));
+	world.add(make_shared<Sphere>(Vec3(1.0f, 0.0f, -1.0f), 0.5f, material_right));
+
+	Camera cam;
+	cam.aspect_ratio = 16.0f / 9.0f;
+	cam.image_width = 400.0f;
+	cam.samples_per_pixel = 100.0f;
+	cam.max_depth = 50;
+	cam.vfov = 20;
+	cam.lookfrom = Vec3(-2.0f, 2.0f, 1.0f);
+	cam.lookat = Vec3(0.0f, 0.0f, -1.0f);
+	cam.vup = Vec3(0.0f, 1.0f, 0.0f);
+
+	cam.defocus_angle = 10.0f;
+	cam.focus_dist = 3.4f;
+
+	cam.render(world);
+
 	return 0;
 }

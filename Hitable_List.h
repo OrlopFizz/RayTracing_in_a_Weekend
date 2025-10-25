@@ -1,26 +1,31 @@
 #pragma once
-#include "Hitable.h"
-
+//#include "Hitable.h"
+#include <vector>
 class Hitable_List : public Hitable {
 	public:
-		Hitable** list;
-		int list_size;
+		std::vector<shared_ptr<Hitable>> objects;
 
-		Hitable_List() : list{ NULL }, list_size{0} {};
-		Hitable_List(Hitable** l, int n) { list = l; list_size = n; };
-		virtual bool hit(const ray& r, float t_min, float t_max, hit_record& rec) const;
-};
+		Hitable_List() {};
+		Hitable_List(shared_ptr<Hitable> object) { add(object); };
 
-bool Hitable_List::hit(const ray& r, float t_min, float t_max, hit_record& rec) const {
-	hit_record temp_rec;
-	bool hit_anything = false;
-	double closest_so_far = t_max;
-	for (int i = 0; i < list_size; ++i) {
-		if (list[i]->hit(r, t_min, closest_so_far, temp_rec)) {
-			hit_anything = true;
-			closest_so_far = temp_rec.t;
-			rec = temp_rec;
+		void clear() { objects.clear(); };
+
+		void add(shared_ptr<Hitable> object) {
+			objects.push_back(object);
 		}
-	}
-	return hit_anything;
-}
+
+		virtual bool hit(const ray& r, interval ray_t, hit_record& rec) const override {
+			hit_record temp_rec;
+			bool hit_anything = false;
+			float closest_so_far = ray_t.max;
+			for (const shared_ptr<Hitable>& object : objects) {
+				Hitable* hitable_obj = object.get();
+				if ((*hitable_obj).hit(r, interval(ray_t.min, closest_so_far), temp_rec)) {
+					hit_anything = true;
+					closest_so_far = temp_rec.t;
+					rec = temp_rec;
+				}
+			}
+			return hit_anything;
+		}
+};
